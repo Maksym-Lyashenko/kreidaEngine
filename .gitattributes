@@ -1,0 +1,4 @@
+engine/libs/**                  linguist-vendored
+
+*.hpp                    linguist-language=C++
+*.inl                    linguist-language=C++
