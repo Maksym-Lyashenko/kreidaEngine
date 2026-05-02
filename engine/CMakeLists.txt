@@ -7,6 +7,8 @@ add_library(${PROJECT_NAME} STATIC)
 # Vulkan SDK
 find_package(Vulkan REQUIRED)
 
+include(../cmake/Shaders.cmake)
+
 # SDL3 (from source)
 set(SDL_SHARED ON CACHE BOOL "" FORCE)
 set(SDL_STATIC OFF CACHE BOOL "" FORCE)
@@ -30,9 +32,6 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/libs/SDL
 # GLM
 add_subdirectory(libs/glm)
 
-#GSL
-add_subdirectory(libs/GSL)
-
 file(GLOB_RECURSE ENGINE_SRC CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp
 )
@@ -46,7 +45,14 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
  Vulkan::Vulkan
  SDL3::SDL3
  glm
- Microsoft.GSL::GSL
  )
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
+
+file(GLOB_RECURSE SHADER_SRC CONFIGURE_DEPENDS
+  ${CMAKE_SOURCE_DIR}/assets/shaders/*.vert
+  ${CMAKE_SOURCE_DIR}/assets/shaders/*.frag
+)
+
+add_shaders(KreidaEngineShaders ${SHADER_SRC})
+add_dependencies(Engine KreidaEngineShaders)

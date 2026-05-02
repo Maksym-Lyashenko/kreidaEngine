@@ -1,7 +1,7 @@
 #pragma once
 
-#include <memory>
 #include <chrono>
+#include <memory>
 
 struct SDL_Window;
 
@@ -10,19 +10,16 @@ namespace eng
 
 class Application;
 
-class Engine
+namespace vk
+{
+class VulkanContext;
+}
+
+class Engine final
 {
  public:
   static Engine& GetInstance();
 
- private:
-  Engine() = default;
-  Engine(const Engine&) = delete;
-  Engine(Engine&&) = delete;
-  Engine& operator=(const Engine&) = delete;
-  Engine& operator=(Engine&&) = delete;
-
- public:
   bool Init(int width, int height);
   void Run();
   void Destroy();
@@ -30,10 +27,20 @@ class Engine
   void SetApplication(Application* app);
   Application* GetApplication();
 
+  [[nodiscard]] SDL_Window* GetWindow() const;
+  [[nodiscard]] vk::VulkanContext* GetVulkanContext() const;
+
+ private:
+  Engine() = default;
+  ~Engine() = default;
+
  private:
   std::unique_ptr<Application> m_application;
-  std::chrono::steady_clock::time_point m_lastTimePoint;
   SDL_Window* m_window = nullptr;
+
+  std::unique_ptr<vk::VulkanContext> m_vulkanContext;
+
+  std::chrono::steady_clock::time_point m_lastTimePoint{};
 };
 
 }  // namespace eng
