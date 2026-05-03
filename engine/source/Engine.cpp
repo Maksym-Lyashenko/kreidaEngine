@@ -6,6 +6,7 @@
 
 #include "Application.h"
 #include "vk/VulkanContext.h"
+#include "render/Renderer2D.h"
 
 namespace eng
 {
@@ -42,10 +43,14 @@ bool Engine::Init(int width, int height)
   try
   {
     m_vulkanContext = std::make_unique<vk::VulkanContext>(m_window);
+    m_renderer2D = std::make_unique<Renderer2D>(&m_vulkanContext->Renderer2D());
   }
   catch (const std::exception& e)
   {
     SDL_Log("VulkanContext creation failed: %s", e.what());
+
+    m_renderer2D.reset();
+    m_vulkanContext.reset();
 
     SDL_DestroyWindow(m_window);
     m_window = nullptr;
@@ -92,6 +97,11 @@ void Engine::Run()
     float deltaTime = std::chrono::duration<float>(now - m_lastTimePoint).count();
     m_lastTimePoint = now;
 
+    if (m_renderer2D)
+    {
+      m_renderer2D->BeginFrame();
+    }
+
     m_application->Update(deltaTime);
 
     if (resized)
@@ -128,6 +138,7 @@ void Engine::Destroy()
   }
 
   m_vulkanContext.reset();
+  m_vulkanContext.reset();
 
   if (m_window)
   {
@@ -156,6 +167,11 @@ SDL_Window* Engine::GetWindow() const
 vk::VulkanContext* Engine::GetVulkanContext() const
 {
   return m_vulkanContext.get();
+}
+
+Renderer2D* Engine::GetRenderer2D()
+{
+  return m_renderer2D.get();
 }
 
 }  // namespace eng

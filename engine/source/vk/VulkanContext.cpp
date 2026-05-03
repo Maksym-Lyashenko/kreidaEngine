@@ -7,6 +7,7 @@
 
 #include <stdexcept>
 #include <vector>
+#include <array>
 
 namespace eng::vk
 {
@@ -122,9 +123,7 @@ VulkanContext::VulkanContext(SDL_Window* window)
       m_frameCommandBuffers(CreateFrameCommandBuffers()),
       m_frameSyncObjects(CreateFrameSyncObjects()),
       m_renderFinishedSemaphores(CreateRenderFinishedSemaphores()),
-      m_triangleVertexShader(MakeShaderModuleDesc("assets/shaders/triangle.vert.spv")),
-      m_triangleFragmentShader(MakeShaderModuleDesc("assets/shaders/triangle.frag.spv")),
-      m_trianglePipeline(MakeTrianglePipelineDesc())
+      m_renderer2D(MakeRenderer2DDesc())
 {
   ResetSwapchainImageLayouts();
 
@@ -138,7 +137,7 @@ VulkanContext::VulkanContext(SDL_Window* window)
 
   SDL_Log("Vulkan frame resources created. Frames in flight: %u", MaxFramesInFlight);
 
-  SDL_Log("Vulkan triangle pipeline created.");
+  SDL_Log("VulkanRenderer2D created.");
 }
 
 VulkanContext::~VulkanContext()
@@ -204,7 +203,7 @@ void VulkanContext::DrawFrame()
   commandBuffer.Reset();
   commandBuffer.BeginOneTimeSubmit();
 
-  RecordClearCommandBuffer(commandBuffer.Get(), imageIndex);
+  RecordFrameCommandBuffer(commandBuffer.Get(), imageIndex);
 
   commandBuffer.End();
 
@@ -271,6 +270,16 @@ void VulkanContext::DrawFrame()
   }
 
   m_currentFrame = (m_currentFrame + 1) % MaxFramesInFlight;
+}
+
+VulkanRenderer2D& VulkanContext::Renderer2D()
+{
+  return m_renderer2D;
+}
+
+const VulkanRenderer2D& VulkanContext::Renderer2D() const
+{
+  return m_renderer2D;
 }
 
 VkInstance VulkanContext::Instance() const
@@ -379,13 +388,16 @@ VulkanShaderModuleDesc VulkanContext::MakeShaderModuleDesc(const char* path) con
   return desc;
 }
 
-VulkanGraphicsPipelineDesc VulkanContext::MakeTrianglePipelineDesc() const
+VulkanRenderer2DDesc VulkanContext::MakeRenderer2DDesc() const
 {
-  VulkanGraphicsPipelineDesc desc{};
+  VulkanRenderer2DDesc desc{};
+  desc.physicalDevice = m_physicalDevice.Get();
   desc.device = m_device.Get();
-  desc.vertexShader = m_triangleVertexShader.Get();
-  desc.fragmentShader = m_triangleFragmentShader.Get();
   desc.colorFormat = m_swapchain.ImageFormat();
+  desc.vertexShaderPath = "assets/shaders/quad.vert.spv";
+  desc.fragmentShaderPath = "assets/shaders/quad.frag.spv";
+  desc.framesInFlight = MaxFramesInFlight;
+  desc.maxQuadsPerBatch = 2048;
 
   return desc;
 }
@@ -450,6 +462,8 @@ bool VulkanContext::RecreateSwapchain()
 
   m_swapchain.Recreate(MakeSwapchainDesc(m_window));
 
+  m_renderer2D.OnSwapchainRecreated(m_swapchain.ImageFormat());
+
   m_renderFinishedSemaphores = CreateRenderFinishedSemaphores();
 
   ResetSwapchainImageLayouts();
@@ -465,7 +479,7 @@ bool VulkanContext::RecreateSwapchain()
   return true;
 }
 
-void VulkanContext::RecordClearCommandBuffer(
+void VulkanContext::RecordFrameCommandBuffer(
     VkCommandBuffer commandBuffer, std::uint32_t imageIndex)
 {
   const VkImage swapchainImage = m_swapchain.Images()[imageIndex];
@@ -492,11 +506,7 @@ void VulkanContext::RecordClearCommandBuffer(
 
   CmdBeginColorRendering(commandBuffer, renderingDesc);
 
-  CmdSetViewportAndScissor(commandBuffer, m_swapchain.Extent());
-
-  vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_trianglePipeline.Get());
-
-  vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+  m_renderer2D.RenderQueuedCommands(commandBuffer, m_swapchain.Extent(), m_currentFrame);
 
   CmdEndRendering(commandBuffer);
 

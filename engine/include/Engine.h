@@ -9,11 +9,14 @@ namespace eng
 {
 
 class Application;
+class Renderer2D;
 
 namespace vk
 {
+
 class VulkanContext;
-}
+
+}  // namespace vk
 
 class Engine final
 {
@@ -29,6 +32,7 @@ class Engine final
 
   [[nodiscard]] SDL_Window* GetWindow() const;
   [[nodiscard]] vk::VulkanContext* GetVulkanContext() const;
+  [[nodiscard]] Renderer2D* GetRenderer2D();
 
  private:
   Engine() = default;
@@ -39,6 +43,7 @@ class Engine final
   SDL_Window* m_window = nullptr;
 
   std::unique_ptr<vk::VulkanContext> m_vulkanContext;
+  std::unique_ptr<Renderer2D> m_renderer2D;
 
   std::chrono::steady_clock::time_point m_lastTimePoint{};
 };

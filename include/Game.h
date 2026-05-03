@@ -12,5 +12,5 @@ class Game : public eng::Application
   void Destroy() override;
 
  private:
-  //   eng::Scene* m_scene = nullptr;
+  eng::Renderer2D* m_renderer = nullptr;
 };

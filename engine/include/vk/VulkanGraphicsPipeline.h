@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include <vector>
 
 namespace eng::vk
 {
@@ -13,6 +14,11 @@ struct VulkanGraphicsPipelineDesc final
   VkShaderModule fragmentShader = VK_NULL_HANDLE;
 
   VkFormat colorFormat = VK_FORMAT_UNDEFINED;
+
+  std::vector<VkVertexInputBindingDescription> vertexBindings;
+  std::vector<VkVertexInputAttributeDescription> vertexAttributes;
+
+  std::vector<VkPushConstantRange> pushConstantRanges;
 };
 
 class VulkanGraphicsPipeline final

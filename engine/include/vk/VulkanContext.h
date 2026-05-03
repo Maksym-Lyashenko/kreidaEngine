@@ -11,6 +11,9 @@
 #include "vk/VulkanFrameSync.h"
 #include "vk/VulkanShaderModule.h"
 #include "vk/VulkanGraphicsPipeline.h"
+#include "vk/Vertex2D.h"
+#include "vk/VulkanBuffer.h"
+#include "vk/VulkanRenderer2D.h"
 
 #include <cstdint>
 #include <vector>
@@ -35,6 +38,9 @@ class VulkanContext final
   void NotifyWindowResized();
   void DrawFrame();
 
+  [[nodiscard]] VulkanRenderer2D& Renderer2D();
+  [[nodiscard]] const VulkanRenderer2D& Renderer2D() const;
+
   [[nodiscard]] VkInstance Instance() const;
   [[nodiscard]] VkSurfaceKHR Surface() const;
   [[nodiscard]] VkPhysicalDevice PhysicalDevice() const;
@@ -55,14 +61,15 @@ class VulkanContext final
   VulkanCommandBufferDesc MakeFrameCommandBufferDesc() const;
   VulkanFrameSyncDesc MakeFrameSyncDesc() const;
   VulkanShaderModuleDesc MakeShaderModuleDesc(const char* path) const;
-  VulkanGraphicsPipelineDesc MakeTrianglePipelineDesc() const;
+
+  VulkanRenderer2DDesc MakeRenderer2DDesc() const;
 
   std::vector<VulkanCommandBuffer> CreateFrameCommandBuffers() const;
   std::vector<VulkanFrameSync> CreateFrameSyncObjects() const;
   std::vector<VulkanSemaphore> CreateRenderFinishedSemaphores() const;
 
   [[nodiscard]] bool RecreateSwapchain();
-  void RecordClearCommandBuffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
+  void RecordFrameCommandBuffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
   void ResetSwapchainImageLayouts();
 
  private:
@@ -89,9 +96,7 @@ class VulkanContext final
   std::uint32_t m_currentFrame = 0;
   bool m_windowResized = false;
 
-  VulkanShaderModule m_triangleVertexShader;
-  VulkanShaderModule m_triangleFragmentShader;
-  VulkanGraphicsPipeline m_trianglePipeline;
+  VulkanRenderer2D m_renderer2D;
 };
 
 }  // namespace eng::vk

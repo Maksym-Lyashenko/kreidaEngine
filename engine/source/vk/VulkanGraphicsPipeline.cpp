@@ -97,8 +97,12 @@ void VulkanGraphicsPipeline::Create(const VulkanGraphicsPipelineDesc& desc)
   layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   layoutCreateInfo.setLayoutCount = 0;
   layoutCreateInfo.pSetLayouts = nullptr;
-  layoutCreateInfo.pushConstantRangeCount = 0;
-  layoutCreateInfo.pPushConstantRanges = nullptr;
+
+  layoutCreateInfo.pushConstantRangeCount =
+      static_cast<std::uint32_t>(desc.pushConstantRanges.size());
+
+  layoutCreateInfo.pPushConstantRanges =
+      desc.pushConstantRanges.empty() ? nullptr : desc.pushConstantRanges.data();
 
   vkCheck(
       vkCreatePipelineLayout(m_device, &layoutCreateInfo, nullptr, &m_pipelineLayout),
@@ -120,10 +124,16 @@ void VulkanGraphicsPipeline::Create(const VulkanGraphicsPipelineDesc& desc)
 
   VkPipelineVertexInputStateCreateInfo vertexInput{};
   vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  vertexInput.vertexBindingDescriptionCount = 0;
-  vertexInput.pVertexBindingDescriptions = nullptr;
-  vertexInput.vertexAttributeDescriptionCount = 0;
-  vertexInput.pVertexAttributeDescriptions = nullptr;
+
+  vertexInput.vertexBindingDescriptionCount =
+      static_cast<std::uint32_t>(desc.vertexBindings.size());
+  vertexInput.pVertexBindingDescriptions =
+      desc.vertexBindings.empty() ? nullptr : desc.vertexBindings.data();
+
+  vertexInput.vertexAttributeDescriptionCount =
+      static_cast<std::uint32_t>(desc.vertexAttributes.size());
+  vertexInput.pVertexAttributeDescriptions =
+      desc.vertexAttributes.empty() ? nullptr : desc.vertexAttributes.data();
 
   VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
   inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
