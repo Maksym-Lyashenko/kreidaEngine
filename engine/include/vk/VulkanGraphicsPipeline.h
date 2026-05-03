@@ -21,6 +21,8 @@ struct VulkanGraphicsPipelineDesc final
   std::vector<VkVertexInputAttributeDescription> vertexAttributes;
 
   std::vector<VkPushConstantRange> pushConstantRanges;
+
+  bool enableAlphaBlending = false;
 };
 
 class VulkanGraphicsPipeline final

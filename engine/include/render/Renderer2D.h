@@ -15,6 +15,7 @@ class VulkanRenderer2D;
 }
 
 class Texture2D;
+struct Sprite;
 
 struct Color4 final
 {
@@ -73,6 +74,17 @@ class Renderer2D final
       float sourceWidth,
       float sourceHeight,
       Color4 tint = Color4{});
+
+  void DrawSprite(const Sprite& sprite, float x, float y, Color4 tint = Color4{});
+
+  void DrawSprite(
+      const Sprite& sprite, float x, float y, float width, float height, Color4 tint = Color4{});
+
+  void DrawSpritePivoted(
+      const Sprite& sprite, float x, float y, float scale = 1.0f, Color4 tint = Color4{});
+
+  void DrawSpritePivoted(
+      const Sprite& sprite, float x, float y, float width, float height, Color4 tint = Color4{});
 
  private:
   vk::VulkanRenderer2D* m_backend = nullptr;

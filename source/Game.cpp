@@ -8,9 +8,36 @@ bool Game::Init()
 
   m_renderer = engine.GetRenderer2D();
 
-  m_texture = engine.Assets().LoadTexture2D("assets/textures/brick.png");
+  m_texture = engine.Assets().LoadTexture2D("assets/textures/Run.png");
 
-  return m_renderer->IsValid();
+  if (m_texture)
+  {
+    m_spriteSheet = std::make_unique<eng::SpriteSheet>(
+        m_texture,
+        128,
+        128,
+        0,
+        0,
+        64.0f,    // pivotX
+        112.0f);  // pivotY
+
+    std::vector<eng::Sprite> idleFrames = m_spriteSheet->GetSpritesInRow(0, 0, 4);
+
+    std::vector<eng::Sprite> shotFrames = m_spriteSheet->GetSpritesInRow(
+        0,  // row
+        0,  // first column
+        12  // frame count
+    );
+
+    m_shotClip = eng::AnimationClip(
+        std::move(shotFrames),
+        8.0f,  // FPS
+        true);
+
+    m_player.SetClip(&m_shotClip);
+  }
+
+  return m_renderer->IsValid() && m_texture.get()->IsValid() && m_spriteSheet.get()->IsValid();
 }
 
 void Game::Update(float DeltaTime)
@@ -20,45 +47,20 @@ void Game::Update(float DeltaTime)
     return;
   }
 
-  static float time = 0.0f;
-  time += DeltaTime;
+  m_player.Update(DeltaTime);
 
-  const float x = 100.0f + std::sin(time) * 60.0f;
-
-  m_renderer->DrawQuad(x, x, 320.0f, 200.0f, eng::Color4{0.1f, 0.15f, 0.22f, 1.0f});
-
-  if (m_texture)
+  if (m_player.HasClip())
   {
-    // First 16x16 sprite from atlas.
-    m_renderer->DrawTextureRegionPixels(
-        m_texture.get(),
-        460.0f,
-        160.0f,
-        128.0f,
-        128.0f,
-        0.0f,
-        0.0f,
-        16.0f,
-        16.0f,
-        eng::Color4{1.0f, 1.0f, 1.0f, 1.0f});
-
-    // Second sprite: x = 16, y = 0.
-    m_renderer->DrawTextureRegionPixels(
-        m_texture.get(),
-        620.0f,
-        160.0f,
-        128.0f,
-        128.0f,
-        16.0f,
-        0.0f,
-        16.0f,
-        16.0f,
-        eng::Color4{1.0f, 1.0f, 1.0f, 1.0f});
+    m_renderer->DrawSpritePivoted(m_player.CurrentSprite(), 300.0f, 300.0f, 2.0f);
   }
 }
 
 void Game::Destroy()
 {
+  m_player.Stop();
+
+  m_spriteSheet.reset();
   m_texture.reset();
+
   m_renderer = nullptr;
 }

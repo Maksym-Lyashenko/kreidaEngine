@@ -3,6 +3,7 @@
 #include "graphics/Texture2D.h"
 #include "vk/VulkanRenderer2D.h"
 #include "vk/VulkanTexture2D.h"
+#include "sprites/SpriteSheet.h"
 
 namespace eng
 {
@@ -153,6 +154,74 @@ void Renderer2D::DrawTextureRegionPixels(
   const float v1 = (sourceY + sourceHeight) / textureHeight;
 
   DrawTextureRegion(texture, x, y, width, height, u0, v0, u1, v1, tint);
+}
+
+void Renderer2D::DrawSprite(const Sprite& sprite, float x, float y, Color4 tint)
+{
+  if (!sprite.IsValid())
+  {
+    return;
+  }
+
+  DrawSprite(sprite, x, y, sprite.sourceWidth, sprite.sourceHeight, tint);
+}
+
+void Renderer2D::DrawSprite(
+    const Sprite& sprite, float x, float y, float width, float height, Color4 tint)
+{
+  if (!sprite.IsValid())
+  {
+    return;
+  }
+
+  DrawTextureRegionPixels(
+      sprite.texture.get(),
+      x,
+      y,
+      width,
+      height,
+      sprite.sourceX,
+      sprite.sourceY,
+      sprite.sourceWidth,
+      sprite.sourceHeight,
+      tint);
+}
+
+void Renderer2D::DrawSpritePivoted(const Sprite& sprite, float x, float y, float scale, Color4 tint)
+{
+  if (!sprite.IsValid())
+  {
+    return;
+  }
+
+  DrawSpritePivoted(sprite, x, y, sprite.sourceWidth * scale, sprite.sourceHeight * scale, tint);
+}
+
+void Renderer2D::DrawSpritePivoted(
+    const Sprite& sprite, float x, float y, float width, float height, Color4 tint)
+{
+  if (!sprite.IsValid())
+  {
+    return;
+  }
+
+  const float scaleX = width / sprite.sourceWidth;
+  const float scaleY = height / sprite.sourceHeight;
+
+  const float drawX = x - sprite.pivotX * scaleX;
+  const float drawY = y - sprite.pivotY * scaleY;
+
+  DrawTextureRegionPixels(
+      sprite.texture.get(),
+      drawX,
+      drawY,
+      width,
+      height,
+      sprite.sourceX,
+      sprite.sourceY,
+      sprite.sourceWidth,
+      sprite.sourceHeight,
+      tint);
 }
 
 }  // namespace eng

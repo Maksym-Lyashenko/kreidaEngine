@@ -136,10 +136,10 @@ void WriteQuadVertices(
 
   const std::size_t base = quadIndex * 4;
 
-  vertices[base + 0] = Renderer2DVertex{{x0, y0}, {u0, v0}, {r, g, b, a}};
-  vertices[base + 1] = Renderer2DVertex{{x1, y0}, {u1, v0}, {r, g, b, a}};
-  vertices[base + 2] = Renderer2DVertex{{x1, y1}, {u1, v1}, {r, g, b, a}};
-  vertices[base + 3] = Renderer2DVertex{{x0, y1}, {u0, v1}, {r, g, b, a}};
+  vertices[base + 0] = Renderer2DVertex{{x0, y0}, {u0, v1}, {r, g, b, a}};
+  vertices[base + 1] = Renderer2DVertex{{x1, y0}, {u1, v1}, {r, g, b, a}};
+  vertices[base + 2] = Renderer2DVertex{{x1, y1}, {u1, v0}, {r, g, b, a}};
+  vertices[base + 3] = Renderer2DVertex{{x0, y1}, {u0, v0}, {r, g, b, a}};
 }
 
 }  // namespace
@@ -404,6 +404,8 @@ VulkanGraphicsPipelineDesc VulkanRenderer2D::MakePipelineDesc(VkFormat colorForm
   desc.vertexShader = m_vertexShader.Get();
   desc.fragmentShader = m_fragmentShader.Get();
   desc.colorFormat = colorFormat;
+
+  desc.enableAlphaBlending = true;
 
   desc.descriptorSetLayouts = {m_textureDescriptorSetLayout.Get()};
 
