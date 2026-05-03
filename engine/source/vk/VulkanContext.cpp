@@ -272,6 +272,11 @@ void VulkanContext::DrawFrame()
   m_currentFrame = (m_currentFrame + 1) % MaxFramesInFlight;
 }
 
+void VulkanContext::WaitIdle() const
+{
+  m_device.WaitIdle();
+}
+
 VulkanRenderer2D& VulkanContext::Renderer2D()
 {
   return m_renderer2D;
@@ -393,6 +398,8 @@ VulkanRenderer2DDesc VulkanContext::MakeRenderer2DDesc() const
   VulkanRenderer2DDesc desc{};
   desc.physicalDevice = m_physicalDevice.Get();
   desc.device = m_device.Get();
+  desc.commandPool = m_graphicsCommandPool.Get();
+  desc.graphicsQueue = m_device.GraphicsQueue();
   desc.colorFormat = m_swapchain.ImageFormat();
   desc.vertexShaderPath = "assets/shaders/quad.vert.spv";
   desc.fragmentShaderPath = "assets/shaders/quad.frag.spv";

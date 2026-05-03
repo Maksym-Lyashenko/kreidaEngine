@@ -4,6 +4,10 @@ project (Engine)
 
 add_library(${PROJECT_NAME} STATIC)
 
+target_sources(Engine PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/libs/libs.cpp
+)
+
 # Vulkan SDK
 find_package(Vulkan REQUIRED)
 
@@ -32,6 +36,10 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/libs/SDL
 # GLM
 add_subdirectory(libs/glm)
 
+# stb_image
+add_library(stb_image INTERFACE)
+target_include_directories(stb_image INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/libs/stb)
+
 file(GLOB_RECURSE ENGINE_SRC CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp
 )
@@ -45,6 +53,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
  Vulkan::Vulkan
  SDL3::SDL3
  glm
+ stb_image
  )
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)

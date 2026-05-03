@@ -95,8 +95,11 @@ void VulkanGraphicsPipeline::Create(const VulkanGraphicsPipelineDesc& desc)
 
   VkPipelineLayoutCreateInfo layoutCreateInfo{};
   layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  layoutCreateInfo.setLayoutCount = 0;
-  layoutCreateInfo.pSetLayouts = nullptr;
+
+  layoutCreateInfo.setLayoutCount = static_cast<std::uint32_t>(desc.descriptorSetLayouts.size());
+
+  layoutCreateInfo.pSetLayouts =
+      desc.descriptorSetLayouts.empty() ? nullptr : desc.descriptorSetLayouts.data();
 
   layoutCreateInfo.pushConstantRangeCount =
       static_cast<std::uint32_t>(desc.pushConstantRanges.size());

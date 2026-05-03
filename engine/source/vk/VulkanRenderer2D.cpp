@@ -18,6 +18,7 @@ namespace
 struct Renderer2DVertex final
 {
   float position[2];
+  float uv[2];
   float color[4];
 };
 
@@ -35,9 +36,9 @@ VkVertexInputBindingDescription Renderer2DVertexBindingDescription()
   return desc;
 }
 
-std::array<VkVertexInputAttributeDescription, 2> Renderer2DVertexAttributeDescriptions()
+std::array<VkVertexInputAttributeDescription, 3> Renderer2DVertexAttributeDescriptions()
 {
-  std::array<VkVertexInputAttributeDescription, 2> attributes{};
+  std::array<VkVertexInputAttributeDescription, 3> attributes{};
 
   attributes[0].location = 0;
   attributes[0].binding = 0;
@@ -46,8 +47,13 @@ std::array<VkVertexInputAttributeDescription, 2> Renderer2DVertexAttributeDescri
 
   attributes[1].location = 1;
   attributes[1].binding = 0;
-  attributes[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-  attributes[1].offset = offsetof(Renderer2DVertex, color);
+  attributes[1].format = VK_FORMAT_R32G32_SFLOAT;
+  attributes[1].offset = offsetof(Renderer2DVertex, uv);
+
+  attributes[2].location = 2;
+  attributes[2].binding = 0;
+  attributes[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  attributes[2].offset = offsetof(Renderer2DVertex, color);
 
   return attributes;
 }
@@ -123,12 +129,17 @@ void WriteQuadVertices(
   const float b = command.color.b;
   const float a = command.color.a;
 
+  const float u0 = command.u0;
+  const float v0 = command.v0;
+  const float u1 = command.u1;
+  const float v1 = command.v1;
+
   const std::size_t base = quadIndex * 4;
 
-  vertices[base + 0] = Renderer2DVertex{{x0, y0}, {r, g, b, a}};
-  vertices[base + 1] = Renderer2DVertex{{x1, y0}, {r, g, b, a}};
-  vertices[base + 2] = Renderer2DVertex{{x1, y1}, {r, g, b, a}};
-  vertices[base + 3] = Renderer2DVertex{{x0, y1}, {r, g, b, a}};
+  vertices[base + 0] = Renderer2DVertex{{x0, y0}, {u0, v0}, {r, g, b, a}};
+  vertices[base + 1] = Renderer2DVertex{{x1, y0}, {u1, v0}, {r, g, b, a}};
+  vertices[base + 2] = Renderer2DVertex{{x1, y1}, {u1, v1}, {r, g, b, a}};
+  vertices[base + 3] = Renderer2DVertex{{x0, y1}, {u0, v1}, {r, g, b, a}};
 }
 
 }  // namespace
@@ -136,23 +147,23 @@ void WriteQuadVertices(
 VulkanRenderer2D::VulkanRenderer2D(const VulkanRenderer2DDesc& desc)
     : m_physicalDevice(desc.physicalDevice),
       m_device(desc.device),
+      m_commandPool(desc.commandPool),
+      m_graphicsQueue(desc.graphicsQueue),
       m_colorFormat(desc.colorFormat),
       m_framesInFlight(desc.framesInFlight),
       m_maxQuadsPerBatch(desc.maxQuadsPerBatch),
       m_vertexShader(MakeShaderModuleDesc(desc.vertexShaderPath)),
       m_fragmentShader(MakeShaderModuleDesc(desc.fragmentShaderPath)),
+      m_textureDescriptorSetLayout(MakeTextureDescriptorSetLayoutDesc()),
       m_pipeline(MakePipelineDesc(desc.colorFormat)),
       m_frameVertexBuffers(CreateFrameVertexBuffers()),
-      m_indexBuffer(MakeIndexBufferDesc())
+      m_indexBuffer(MakeIndexBufferDesc()),
+      m_whiteTexture(MakeWhiteTextureDesc())
 {
-  if (m_physicalDevice == VK_NULL_HANDLE)
+  if (m_physicalDevice == VK_NULL_HANDLE || m_device == VK_NULL_HANDLE ||
+      m_commandPool == VK_NULL_HANDLE || m_graphicsQueue == VK_NULL_HANDLE)
   {
-    throw std::runtime_error("Cannot create VulkanRenderer2D: physical device is null.");
-  }
-
-  if (m_device == VK_NULL_HANDLE)
-  {
-    throw std::runtime_error("Cannot create VulkanRenderer2D: device is null.");
+    throw std::runtime_error("Cannot create VulkanRenderer2D: invalid Vulkan handles.");
   }
 
   if (m_colorFormat == VK_FORMAT_UNDEFINED)
@@ -178,10 +189,40 @@ VulkanRenderer2D::VulkanRenderer2D(const VulkanRenderer2DDesc& desc)
 
   UploadIndexBuffer();
 
+  CreateDescriptorPool();
+
+  VkDescriptorSet whiteSet = AllocateTextureDescriptorSet(m_whiteTexture);
+  m_whiteTexture.SetDescriptorSet(whiteSet);
+
   m_quadCommands.reserve(m_maxQuadsPerBatch);
 }
 
-VulkanRenderer2D::~VulkanRenderer2D() = default;
+VulkanRenderer2D::~VulkanRenderer2D()
+{
+  DestroyDescriptorPool();
+}
+
+std::unique_ptr<VulkanTexture2D> VulkanRenderer2D::CreateTexture2DFromPixels(
+    std::uint32_t width, std::uint32_t height, const void* pixels, VkDeviceSize pixelsSize)
+{
+  VulkanTexture2DDesc desc{};
+  desc.physicalDevice = m_physicalDevice;
+  desc.device = m_device;
+  desc.commandPool = m_commandPool;
+  desc.graphicsQueue = m_graphicsQueue;
+  desc.width = width;
+  desc.height = height;
+  desc.format = VK_FORMAT_R8G8B8A8_UNORM;
+  desc.pixels = pixels;
+  desc.pixelsSize = pixelsSize;
+
+  auto texture = std::make_unique<VulkanTexture2D>(desc);
+
+  VkDescriptorSet descriptorSet = AllocateTextureDescriptorSet(*texture);
+  texture->SetDescriptorSet(descriptorSet);
+
+  return texture;
+}
 
 void VulkanRenderer2D::OnSwapchainRecreated(VkFormat colorFormat)
 {
@@ -205,12 +246,70 @@ void VulkanRenderer2D::DrawQuad(float x, float y, float width, float height, Col
     return;
   }
 
+  if (m_quadCommands.size() >= m_maxQuadsPerBatch)
+  {
+    return;
+  }
+
   QuadDrawCommand command{};
+  command.texture = &m_whiteTexture;
   command.x = x;
   command.y = y;
   command.width = width;
   command.height = height;
+  command.u0 = 0.0f;
+  command.v0 = 0.0f;
+  command.u1 = 1.0f;
+  command.v1 = 1.0f;
   command.color = color;
+
+  m_quadCommands.push_back(command);
+}
+
+void VulkanRenderer2D::DrawTexture(
+    const VulkanTexture2D& texture, float x, float y, float width, float height, Color4 tint)
+{
+  DrawTextureRegion(texture, x, y, width, height, 0.0f, 0.0f, 1.0f, 1.0f, tint);
+}
+
+void VulkanRenderer2D::DrawTextureRegion(
+    const VulkanTexture2D& texture,
+    float x,
+    float y,
+    float width,
+    float height,
+    float u0,
+    float v0,
+    float u1,
+    float v1,
+    Color4 tint)
+{
+  if (width <= 0.0f || height <= 0.0f)
+  {
+    return;
+  }
+
+  if (m_quadCommands.size() >= m_maxQuadsPerBatch)
+  {
+    return;
+  }
+
+  if (texture.DescriptorSet() == VK_NULL_HANDLE)
+  {
+    return;
+  }
+
+  QuadDrawCommand command{};
+  command.texture = &texture;
+  command.x = x;
+  command.y = y;
+  command.width = width;
+  command.height = height;
+  command.u0 = u0;
+  command.v0 = v0;
+  command.u1 = u1;
+  command.v1 = v1;
+  command.color = tint;
 
   m_quadCommands.push_back(command);
 }
@@ -243,6 +342,8 @@ void VulkanRenderer2D::RenderQueuedCommands(
     throw std::runtime_error("Cannot render queued 2D commands: frame index is invalid.");
   }
 
+  UploadQueuedVertices(frameIndex);
+
   CmdSetViewportAndScissor(commandBuffer, extent);
 
   vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline.Get());
@@ -268,11 +369,17 @@ void VulkanRenderer2D::RenderQueuedCommands(
 
   while (firstCommand < m_quadCommands.size())
   {
-    const std::size_t remaining = m_quadCommands.size() - firstCommand;
+    const VulkanTexture2D* texture = m_quadCommands[firstCommand].texture;
 
-    const std::size_t batchCommandCount = std::min<std::size_t>(remaining, m_maxQuadsPerBatch);
+    std::size_t batchCommandCount = 0;
 
-    RenderBatch(commandBuffer, extent, frameIndex, firstCommand, batchCommandCount);
+    while (firstCommand + batchCommandCount < m_quadCommands.size() &&
+           m_quadCommands[firstCommand + batchCommandCount].texture == texture)
+    {
+      ++batchCommandCount;
+    }
+
+    RenderBatch(commandBuffer, frameIndex, firstCommand, batchCommandCount);
 
     firstCommand += batchCommandCount;
   }
@@ -298,11 +405,13 @@ VulkanGraphicsPipelineDesc VulkanRenderer2D::MakePipelineDesc(VkFormat colorForm
   desc.fragmentShader = m_fragmentShader.Get();
   desc.colorFormat = colorFormat;
 
+  desc.descriptorSetLayouts = {m_textureDescriptorSetLayout.Get()};
+
   desc.vertexBindings = {Renderer2DVertexBindingDescription()};
 
   const auto attributes = Renderer2DVertexAttributeDescriptions();
 
-  desc.vertexAttributes = {attributes[0], attributes[1]};
+  desc.vertexAttributes = {attributes[0], attributes[1], attributes[2]};
 
   VkPushConstantRange pushConstantRange{};
   pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -342,6 +451,70 @@ VulkanBufferDesc VulkanRenderer2D::MakeIndexBufferDesc() const
   return desc;
 }
 
+VulkanDescriptorSetLayoutDesc VulkanRenderer2D::MakeTextureDescriptorSetLayoutDesc() const
+{
+  VkDescriptorSetLayoutBinding textureBinding{};
+  textureBinding.binding = 0;
+  textureBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  textureBinding.descriptorCount = 1;
+  textureBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  textureBinding.pImmutableSamplers = nullptr;
+
+  VulkanDescriptorSetLayoutDesc desc{};
+  desc.device = m_device;
+  desc.bindings = {textureBinding};
+
+  return desc;
+}
+
+VulkanTexture2DDesc VulkanRenderer2D::MakeWhiteTextureDesc() const
+{
+  static const std::uint32_t whitePixel = 0xFFFFFFFFu;
+
+  VulkanTexture2DDesc desc{};
+  desc.physicalDevice = m_physicalDevice;
+  desc.device = m_device;
+  desc.commandPool = m_commandPool;
+  desc.graphicsQueue = m_graphicsQueue;
+  desc.width = 1;
+  desc.height = 1;
+  desc.format = VK_FORMAT_R8G8B8A8_UNORM;
+  desc.pixels = &whitePixel;
+  desc.pixelsSize = sizeof(whitePixel);
+
+  return desc;
+}
+
+void VulkanRenderer2D::CreateDescriptorPool()
+{
+  VkDescriptorPoolSize poolSize{};
+  poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  poolSize.descriptorCount = 1024;
+
+  VkDescriptorPoolCreateInfo createInfo{};
+  createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+  createInfo.flags = 0;
+  createInfo.maxSets = 1024;
+  createInfo.poolSizeCount = 1;
+  createInfo.pPoolSizes = &poolSize;
+
+  VkResult result = vkCreateDescriptorPool(m_device, &createInfo, nullptr, &m_descriptorPool);
+
+  if (result != VK_SUCCESS)
+  {
+    throw std::runtime_error("Failed to create VulkanRenderer2D descriptor pool.");
+  }
+}
+
+void VulkanRenderer2D::DestroyDescriptorPool()
+{
+  if (m_descriptorPool != VK_NULL_HANDLE)
+  {
+    vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+    m_descriptorPool = VK_NULL_HANDLE;
+  }
+}
+
 std::vector<VulkanBuffer> VulkanRenderer2D::CreateFrameVertexBuffers() const
 {
   std::vector<VulkanBuffer> buffers;
@@ -364,39 +537,124 @@ void VulkanRenderer2D::UploadIndexBuffer()
   m_indexBuffer.Upload(indices.data(), sizeof(std::uint16_t) * indices.size());
 }
 
+void VulkanRenderer2D::UploadQueuedVertices(std::uint32_t frameIndex)
+{
+  if (m_quadCommands.empty())
+  {
+    return;
+  }
+
+  if (frameIndex >= m_frameVertexBuffers.size())
+  {
+    throw std::runtime_error("Cannot upload 2D vertices: frame index is invalid.");
+  }
+
+  if (m_quadCommands.size() > m_maxQuadsPerBatch)
+  {
+    throw std::runtime_error("Cannot upload 2D vertices: too many quads.");
+  }
+
+  std::vector<Renderer2DVertex> vertices;
+  vertices.resize(m_quadCommands.size() * 4);
+
+  for (std::size_t i = 0; i < m_quadCommands.size(); ++i)
+  {
+    WriteQuadVertices(vertices.data(), i, m_quadCommands[i]);
+  }
+
+  VulkanBuffer& vertexBuffer = m_frameVertexBuffers[frameIndex];
+
+  vertexBuffer.Upload(vertices.data(), sizeof(Renderer2DVertex) * vertices.size());
+}
+
 void VulkanRenderer2D::RecreatePipeline(VkFormat colorFormat)
 {
   m_colorFormat = colorFormat;
   m_pipeline = VulkanGraphicsPipeline(MakePipelineDesc(m_colorFormat));
 }
 
+VkDescriptorSet VulkanRenderer2D::AllocateTextureDescriptorSet(const VulkanTexture2D& texture)
+{
+  if (m_descriptorPool == VK_NULL_HANDLE)
+  {
+    throw std::runtime_error("Cannot allocate texture descriptor set: descriptor pool is null.");
+  }
+
+  VkDescriptorSetLayout layout = m_textureDescriptorSetLayout.Get();
+
+  VkDescriptorSetAllocateInfo allocateInfo{};
+  allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  allocateInfo.descriptorPool = m_descriptorPool;
+  allocateInfo.descriptorSetCount = 1;
+  allocateInfo.pSetLayouts = &layout;
+
+  VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+
+  VkResult result = vkAllocateDescriptorSets(m_device, &allocateInfo, &descriptorSet);
+
+  if (result != VK_SUCCESS)
+  {
+    throw std::runtime_error("Failed to allocate Vulkan texture descriptor set.");
+  }
+
+  VkDescriptorImageInfo imageInfo{};
+  imageInfo.sampler = texture.Sampler();
+  imageInfo.imageView = texture.ImageView();
+  imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+  VkWriteDescriptorSet write{};
+  write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  write.dstSet = descriptorSet;
+  write.dstBinding = 0;
+  write.dstArrayElement = 0;
+  write.descriptorCount = 1;
+  write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  write.pImageInfo = &imageInfo;
+
+  vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+
+  return descriptorSet;
+}
+
 void VulkanRenderer2D::RenderBatch(
     VkCommandBuffer commandBuffer,
-    VkExtent2D extent,
     std::uint32_t frameIndex,
     std::size_t firstCommand,
     std::size_t commandCount)
 {
-  (void)extent;
+  (void)frameIndex;
 
   if (commandCount == 0)
   {
     return;
   }
 
-  std::vector<Renderer2DVertex> vertices;
-  vertices.resize(commandCount * 4);
+  const VulkanTexture2D* texture = m_quadCommands[firstCommand].texture;
 
-  for (std::size_t i = 0; i < commandCount; ++i)
+  if (texture == nullptr || texture->DescriptorSet() == VK_NULL_HANDLE)
   {
-    WriteQuadVertices(vertices.data(), i, m_quadCommands[firstCommand + i]);
+    texture = &m_whiteTexture;
   }
 
-  VulkanBuffer& vertexBuffer = m_frameVertexBuffers[frameIndex];
+  VkDescriptorSet descriptorSet = texture->DescriptorSet();
 
-  vertexBuffer.Upload(vertices.data(), sizeof(Renderer2DVertex) * vertices.size());
+  vkCmdBindDescriptorSets(
+      commandBuffer,
+      VK_PIPELINE_BIND_POINT_GRAPHICS,
+      m_pipeline.Layout(),
+      0,
+      1,
+      &descriptorSet,
+      0,
+      nullptr);
 
-  vkCmdDrawIndexed(commandBuffer, static_cast<std::uint32_t>(commandCount * 6), 1, 0, 0, 0);
+  vkCmdDrawIndexed(
+      commandBuffer,
+      static_cast<std::uint32_t>(commandCount * 6),
+      1,
+      static_cast<std::uint32_t>(firstCommand * 6),
+      0,
+      0);
 }
 
 }  // namespace eng::vk

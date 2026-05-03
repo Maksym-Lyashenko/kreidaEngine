@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <filesystem>
 #include <memory>
 
 struct SDL_Window;
@@ -10,6 +11,8 @@ namespace eng
 
 class Application;
 class Renderer2D;
+class Texture2D;
+class AssetManager;
 
 namespace vk
 {
@@ -34,6 +37,9 @@ class Engine final
   [[nodiscard]] vk::VulkanContext* GetVulkanContext() const;
   [[nodiscard]] Renderer2D* GetRenderer2D();
 
+  [[nodiscard]] AssetManager* GetAssetManager();
+  [[nodiscard]] AssetManager& Assets();
+
  private:
   Engine() = default;
   ~Engine() = default;
@@ -44,6 +50,7 @@ class Engine final
 
   std::unique_ptr<vk::VulkanContext> m_vulkanContext;
   std::unique_ptr<Renderer2D> m_renderer2D;
+  std::unique_ptr<AssetManager> m_assetManager;
 
   std::chrono::steady_clock::time_point m_lastTimePoint{};
 };

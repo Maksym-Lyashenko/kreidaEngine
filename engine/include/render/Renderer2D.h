@@ -1,5 +1,9 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+
 namespace eng
 {
 
@@ -9,6 +13,8 @@ namespace vk
 class VulkanRenderer2D;
 
 }
+
+class Texture2D;
 
 struct Color4 final
 {
@@ -36,7 +42,37 @@ class Renderer2D final
 
   void BeginFrame();
 
+  [[nodiscard]] std::unique_ptr<Texture2D> CreateTexture2DFromPixels(
+      std::uint32_t width, std::uint32_t height, const void* pixels, std::size_t pixelsSize);
+
   void DrawQuad(float x, float y, float width, float height, Color4 color);
+
+  void DrawTexture(
+      Texture2D* texture, float x, float y, float width, float height, Color4 tint = Color4{});
+
+  void DrawTextureRegion(
+      Texture2D* texture,
+      float x,
+      float y,
+      float width,
+      float height,
+      float u0,
+      float v0,
+      float u1,
+      float v1,
+      Color4 tint = Color4{});
+
+  void DrawTextureRegionPixels(
+      Texture2D* texture,
+      float x,
+      float y,
+      float width,
+      float height,
+      float sourceX,
+      float sourceY,
+      float sourceWidth,
+      float sourceHeight,
+      Color4 tint = Color4{});
 
  private:
   vk::VulkanRenderer2D* m_backend = nullptr;

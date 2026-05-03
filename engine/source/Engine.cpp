@@ -1,12 +1,16 @@
 #include "Engine.h"
 
 #include <SDL3/SDL.h>
+#include <stb_image.h>
 
 #include <exception>
 
 #include "Application.h"
 #include "vk/VulkanContext.h"
+#include "assets/AssetManager.h"
 #include "render/Renderer2D.h"
+
+#include "graphics/Texture2D.h"
 
 namespace eng
 {
@@ -44,11 +48,13 @@ bool Engine::Init(int width, int height)
   {
     m_vulkanContext = std::make_unique<vk::VulkanContext>(m_window);
     m_renderer2D = std::make_unique<Renderer2D>(&m_vulkanContext->Renderer2D());
+    m_assetManager = std::make_unique<AssetManager>(m_renderer2D.get());
   }
   catch (const std::exception& e)
   {
     SDL_Log("VulkanContext creation failed: %s", e.what());
 
+    m_assetManager.reset();
     m_renderer2D.reset();
     m_vulkanContext.reset();
 
@@ -131,13 +137,24 @@ void Engine::Run()
 
 void Engine::Destroy()
 {
+  if (m_vulkanContext)
+  {
+    m_vulkanContext->WaitIdle();
+  }
+
+  if (m_renderer2D)
+  {
+    m_renderer2D->BeginFrame();
+  }
+
   if (m_application)
   {
     m_application->Destroy();
     m_application.reset();
   }
 
-  m_vulkanContext.reset();
+  m_assetManager.reset();
+  m_renderer2D.reset();
   m_vulkanContext.reset();
 
   if (m_window)
@@ -172,6 +189,16 @@ vk::VulkanContext* Engine::GetVulkanContext() const
 Renderer2D* Engine::GetRenderer2D()
 {
   return m_renderer2D.get();
+}
+
+AssetManager* Engine::GetAssetManager()
+{
+  return m_assetManager.get();
+}
+
+AssetManager& Engine::Assets()
+{
+  return *m_assetManager;
 }
 
 }  // namespace eng

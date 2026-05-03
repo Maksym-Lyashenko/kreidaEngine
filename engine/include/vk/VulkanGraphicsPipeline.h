@@ -15,6 +15,8 @@ struct VulkanGraphicsPipelineDesc final
 
   VkFormat colorFormat = VK_FORMAT_UNDEFINED;
 
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+
   std::vector<VkVertexInputBindingDescription> vertexBindings;
   std::vector<VkVertexInputAttributeDescription> vertexAttributes;
 

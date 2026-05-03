@@ -38,6 +38,8 @@ class VulkanContext final
   void NotifyWindowResized();
   void DrawFrame();
 
+  void WaitIdle() const;
+
   [[nodiscard]] VulkanRenderer2D& Renderer2D();
   [[nodiscard]] const VulkanRenderer2D& Renderer2D() const;
 

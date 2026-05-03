@@ -13,4 +13,5 @@ class Game : public eng::Application
 
  private:
   eng::Renderer2D* m_renderer = nullptr;
+  std::shared_ptr<eng::Texture2D> m_texture;
 };
